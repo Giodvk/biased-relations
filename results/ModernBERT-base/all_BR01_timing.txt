@@ -1,2 +1,0 @@
-Model: answerdotai/ModernBERT-base, Relation: BR01, Time: 348.8578 seconds
-Model: answerdotai/ModernBERT-base, Relation: BR01, Time: 365.2788 seconds

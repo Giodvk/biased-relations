@@ -1,59 +1,68 @@
-# knowledge-neurons
-Code for the ACL-2022 paper "Knowledge Neurons in Pretrained Transformers"
+# 🧠 Biased Neurons, Fairer Models
 
-# Introduction
+This repository contains the replication package for our study  
+**“Tracing Stereotypes in Pre-trained Transformers: From Biased Neurons to Fairer Models”**  
 
-This project helps you to reproduce all the results presented in our work about knowledge neurons, including calculating the knowledge attribution scores, identifying knowledge neurons, computing all the statistics, and plotting all the figures.
+The project extends the **Knowledge Neurons** framework (Dai et al., *ACL 2022*) to investigate how **social biases** are internally represented within pretrained transformers and how they can be **localized and mitigated** at the neuron level.  
+Our work introduces the concept of **biased neurons**—neurons that encode stereotypical associations—and proposes a reproducible methodology to trace and suppress them, evaluating the trade-off between bias mitigation and performance on fairness-sensitive software engineering tasks.
 
-# Code Usage
+---
 
-First please change the working directory to `src/`.
+## 🧩 Repository Structure
 
-### Calculate the Attribution Scores
-Run `bash 1_run_mlm.sh param1`, where param1 is the relation name to analyze, such as "P101". You can write a script to run this command for each of the 34 relations. This command will calculate the attribution scores for all the facts.
-
-### Identify Knowledge Neurons
-Run `bash 2_run_kn.sh`. This command will identify and refine knowledge neurons for each fact, and give their statistics along with a figure about the knowledge neuron distribution.
-
-### Modify Knowledge Neurons
-Run `3_run_modify_activation.sh`. This command will modify the activation values of knowledge neurons and record the corresponding results.
-
-### Check Knowledge Neuron Activation for Prompts
-Run `4_run_distant.sh`. This command will check the activation values of knowledge neurons for different types of prompts crawled from web pages.
-
-### Produce Activating Prompts
-Run `5_run_trigger_examples.sh`. This command will produce activating prompts.
-
-### Update Facts
-Run `6_run_edit.sh param1 param2`, where param1 and param2 are two hyper-parameters. In our paper, they are set to 1 and 8, respectively. This command will edit sampled facts.
-
-### Erase Relations
-Run `7_run_erase.sh param1`, where param1 is the relation name to erase. This command will erase a relation. In our paper, we try to erase P19, P27, P106, and P937, which can be regarded as privacy information. Of course, you can erase any relation as you like.
-
-### Plot Figures
-Run `8_run_plot.sh`. This command will plot two figures that visualize the results from `3_run_modify_activation.sh` and `4_run_distant.sh`.
-
-## Citation
-
-If you use this code for your research, please kindly cite our ACL-2022 paper:
 ```
-@inproceedings{dai2022kn,
-  author    = {Damai Dai and
-               Li Dong and
-               Yaru Hao and
-               Zhifang Sui and
-               Baobao Chang and
-               Furu Wei},
-  title     = {Knowledge Neurons in Pretrained Transformers},
-  booktitle = {Proceedings of the 60th Annual Meeting of the Association for Computational
-               Linguistics (Volume 1: Long Papers), {ACL} 2022, Dublin, Ireland,
-               May 22-27, 2022},
-  pages     = {8493--8502},
-  year      = {2022},
-}
+├── data/
+│   ├── biased_relations/
+│   ├── dataset_extraction/
+│   └── README.md
+│
+├── results/
+│   ├── bert-base-cased/
+│   ├── bert-large-cased/
+│   ├── ....
+│   ├── analysis_rq1/
+│   └── README.md
+│
+├── src/
+│   ├── 1_analyze_mlm.py
+│   ├── 2_get_kn.py
+│   ├── ...
+│   └── README.md
+│
+└── README.md
 ```
 
-## Contact
+---
 
-Damai Dai: daidamai@pku.edu.cn
-Li Dong: lidong1@microsoft.com
+### 📁 **`data/`**
+Contains the datasets of **biased relations** and **bias-activating prompts** used to trace and evaluate biased neurons.  
+It includes:
+- The nine bias categories (Age, Gender, Race/Color, etc.);
+- Scripts for dataset extraction and processing;
+- Documentation of the full generation pipeline.
+
+See [`data/README.md`](./data/README.md) for details.
+
+---
+
+### 📊 **`results/`**
+Stores all experimental outputs, summaries, and statistical analyses for the three research questions (RQ1–RQ3).  
+Includes:
+- Attribution and suppression results for each BERT model;
+- Per-task evaluation data for SE tasks (e.g., sentiment, tone bearing, requirements classification);
+- Scripts for data analysis and visualization.
+
+See [`results/README.md`](./results/README.md) for a detailed description of each file.
+
+---
+
+### ⚙️ **`src/`**
+Contains the complete source code implementing our adaptation of the Knowledge Neurons framework for bias tracing and suppression.  
+Includes:
+- Scripts for neuron attribution, refinement, and suppression;
+- Plotting utilities for visual analysis;
+- Evaluation scripts for SE downstream tasks.
+
+See [`src/README.md`](./src/README.md) for usage instructions.
+
+---
