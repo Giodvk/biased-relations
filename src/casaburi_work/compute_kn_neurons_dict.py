@@ -94,3 +94,7 @@ def create_mask_foundation(kn_neurons_directory: Path, is_union: bool = True, is
     return kn_neurons_mask_generator
 
 
+if __name__ == "__main__":
+    create_mask_foundation(None)
+
+

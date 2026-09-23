@@ -13,7 +13,6 @@ import pickle
 import time
 from tqdm import tqdm  # Aggiunto per la barra di caricamento
 
-import transformers
 from transformers import BertTokenizer, AutoTokenizer
 from custom_bert import BertForMaskedLM
 import torch.nn.functional as F
@@ -288,7 +287,7 @@ def run(args):
     return timing_log
 
 if __name__ == "__main__":
-    
+    """
     # ARRAY RIPRISTINATO COME DA PAPER MSR 2026 (ModernBERT escluso)
     # Eseguiamo UN MODELLO ALLA VOLTA per non sovraccaricare il PC
     model_list = [
@@ -347,3 +346,4 @@ if __name__ == "__main__":
     # Save timing log to JSON
     with open("run_timing_log.json", "w", encoding="utf-8") as f:
         json.dump(timing_log, f, indent=2)
+    """
