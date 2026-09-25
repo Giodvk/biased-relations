@@ -133,11 +133,10 @@ def mask_input_tokens(input_ids, masked_positions, tokenizer):
         raise ValueError("Masked positions must be provided.")
 
     labels = input_ids.clone()
-    labels[~masked_positions] = -100  # Only compute loss on masked tokens
+    labels[~masked_positions] = -100  
 
     masked_inputs = input_ids.clone()
 
-   # 80% delle posizioni selezionate -> [MASK]
     replace_prob = torch.full(
         input_ids.shape,
         0.8,
@@ -175,10 +174,21 @@ def mask_input_tokens(input_ids, masked_positions, tokenizer):
 
     masked_inputs[random_positions] = random_tokens[random_positions]
 
-    # Il restante ~10% delle posizioni selezionate
-    # rimane invariato automaticamente
 
     return masked_inputs, labels
+
+
+def count_single_token_examples(example, split_criterion):
+    if len(example) != 3 : 
+        print("L'esempio non è valido")
+        return None
+    targets = []
+    for criterion in split_criterion:
+        targets = example[1].split(criterion)
+        if len(targets) > 1:
+            return 0
+    print(example[1])
+    return 1
 
 
 

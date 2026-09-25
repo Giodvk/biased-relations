@@ -6,11 +6,8 @@ import os
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-threshold_ratio = 0.2
-mode_ratio_bag = 0.7
-mode_ratio_rel = 0.1
 
-def re_filter(metric_triplets):
+def re_filter(metric_triplets, threshold_ratio = 0.2):
     metric_max = -999
     for i in range(len(metric_triplets)):
         metric_max = max(metric_max, metric_triplets[i][2])
@@ -32,7 +29,7 @@ def parse_kn(pos_cnt, tot_num, mode_ratio, min_threshold=0):
             kn_bag.append(pos_str2list(pos_str))
     return kn_bag
 
-def analysis_file(filename, rlts_dir, metric='ig_gold'):
+def analysis_file(filename, rlts_dir, metric='ig_gold', threshold_ratio = 0.2, mode_ratio_bag = 0.7, mode_ratio_rel = 0.1):
     rel = filename.split('.')[0].split('-')[-1]
     print(f'===========> parsing important position in {rel}..., mode_ratio_bag={mode_ratio_bag}')
 
@@ -48,7 +45,7 @@ def analysis_file(filename, rlts_dir, metric='ig_gold'):
         pos_cnt_bag = Counter()
         for rlt in rlts_bag:
             res_dict = rlt[1]
-            metric_triplets = re_filter(res_dict[metric])
+            metric_triplets = re_filter(res_dict[metric], threshold_ratio)
             for metric_triplet in metric_triplets:
                 pos_cnt_bag.update([pos_list2str(metric_triplet[:2])])
         kn_bag = parse_kn(pos_cnt_bag, len(rlts_bag), mode_ratio_bag, 3)
@@ -79,12 +76,14 @@ def stat(data, pos_type, rel):
 def process_results_dir(kn_dir,rlts_dir):
     if not os.path.exists(kn_dir):
         os.makedirs(kn_dir)
+
+    
     for filename in os.listdir(rlts_dir):
         if filename.endswith('.rlt.jsonl'):
             threshold_ratio = 0.2
             mode_ratio_bag = 0.7
             for max_it in range(6):
-                ave_kn_num, kn_bag_list, kn_rel = analysis_file(filename, rlts_dir)
+                ave_kn_num, kn_bag_list, kn_rel = analysis_file(filename, rlts_dir, mode_ratio_bag=mode_ratio_bag, threshold_ratio=threshold_ratio)
                 if ave_kn_num < 2:
                     mode_ratio_bag -= 0.05
                 if ave_kn_num > 5:
@@ -102,7 +101,7 @@ def process_results_dir(kn_dir,rlts_dir):
             threshold_ratio = 0.5
             mode_ratio_bag = 0.7
             for max_it in range(6):
-                ave_kn_num, kn_bag_list, kn_rel = analysis_file(filename, rlts_dir, 'base')
+                ave_kn_num, kn_bag_list, kn_rel = analysis_file(filename, rlts_dir, 'base', mode_ratio_bag=mode_ratio_bag, threshold_ratio=threshold_ratio)
                 if ave_kn_num < 2:
                     mode_ratio_bag -= 0.05
                 if ave_kn_num > 5:
@@ -122,20 +121,20 @@ if __name__ == "__main__":
         "bert-base-cased",
         "bert-large-cased",
         "bert-base-uncased",
-        "bert-large-uncased",
-        "answerdotai/ModernBERT-large",
-        "answerdotai/ModernBERT-base",
+        #"bert-large-uncased",
+        #"answerdotai/ModernBERT-large",
+        #"answerdotai/ModernBERT-base",
         # FINETUNED models:
-        "aieng-lab/bert-large-cased_requirement-completion",
-        "aieng-lab/ModernBERT-large_requirement-completion",
-        "aieng-lab/bert-large-cased_incivility",
-        "aieng-lab/ModernBERT-large_incivility",
-        "aieng-lab/bert-large-cased_tone-bearing",
-        "aieng-lab/ModernBERT-large_tone-bearing",
-        "aieng-lab/bert-large-cased_sentiment",
-        "aieng-lab/ModernBERT-large_sentiment",
-        "aieng-lab/bert-large-cased_requirement-type",
-        "aieng-lab/ModernBERT-large_requirement-type",
+        #"aieng-lab/bert-large-cased_requirement-completion",
+        #"aieng-lab/ModernBERT-large_requirement-completion",
+        #"aieng-lab/bert-large-cased_incivility",
+        #"aieng-lab/ModernBERT-large_incivility",
+        #"aieng-lab/bert-large-cased_tone-bearing",
+        #"aieng-lab/ModernBERT-large_tone-bearing",
+        #"aieng-lab/bert-large-cased_sentiment",
+        #"aieng-lab/ModernBERT-large_sentiment",
+        #"aieng-lab/bert-large-cased_requirement-type",
+        #"aieng-lab/ModernBERT-large_requirement-type",
     ]
 
     for model_name in model_list:
