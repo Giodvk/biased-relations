@@ -1,4 +1,4 @@
-from custom_bert import BertForMaskedLM
+from utils_functions.custom_bert import BertForMaskedLM
 import torch
 from pathlib import Path
 from datasets import load_from_disk
@@ -28,16 +28,8 @@ def load_dataset_from_disk(dataset_path: str):
 
     return dataset
 
-
-
-
-def create_gradient_mask(model:BertForMaskedLM, kn_neurons_mask_generator:dict) -> dict:
-    """
-    Create a gradient mask for the model based on the specified options.
-    """
-
-    def compute_mask(kn_neurons, masks_dict):
-         for layer_idx, neurons in kn_neurons.items():
+def compute_mask(model, kn_neurons, masks_dict):
+        for layer_idx, neurons in kn_neurons.items():
                 if layer_idx < 0 or layer_idx >= len(model.bert.encoder.layer):
                     raise ValueError(f"Layer index {layer_idx} is out of bounds for the model's encoder layers.")
                 
@@ -60,18 +52,35 @@ def create_gradient_mask(model:BertForMaskedLM, kn_neurons_mask_generator:dict) 
                 masks_dict[f"bert.encoder.layer.{layer_idx}.intermediate.dense.bias"] = bias_mask
                 masks_dict[f"bert.encoder.layer.{layer_idx}.output.dense.weight"] = output_weight_mask
 
+
+def create_gradient_mask(model:BertForMaskedLM, kn_neurons_mask_generator:dict) -> dict:
+    """
+    Create a gradient mask for the model based on the specified options.
+    """
+
     gradient_mask = {"union": {}, "intersection": {}}
 
     if kn_neurons_mask_generator.get("union"):
         kn_neurons = kn_neurons_mask_generator["union"]
 
-        compute_mask(kn_neurons, gradient_mask['union'])
+        compute_mask(model, kn_neurons, gradient_mask['union'])
 
 
     if kn_neurons_mask_generator.get("intersection"):
         kn_neurons = kn_neurons_mask_generator["intersection"]
-        compute_mask(kn_neurons, gradient_mask['intersection'])
+        compute_mask(model, kn_neurons, gradient_mask['intersection'])
 
+
+    return gradient_mask
+
+
+def create_relation_based_mask(model: BertForMaskedLM, kn_neurons_relation_map:dict):
+    gradient_mask = {}
+
+    for relation_id, relation_mask in kn_neurons_relation_map.items():
+        mask_input = {}
+        compute_mask(model, relation_mask, mask_input)
+        gradient_mask[relation_id] = mask_input
 
     return gradient_mask
 
@@ -178,6 +187,9 @@ def mask_input_tokens(input_ids, masked_positions, tokenizer):
     return masked_inputs, labels
 
 
+
+
+
 def count_single_token_examples(example, split_criterion):
     if len(example) != 3 : 
         print("L'esempio non è valido")
@@ -190,90 +202,4 @@ def count_single_token_examples(example, split_criterion):
     print(example[1])
     return 1
 
-
-
-def plot_utility_fairness(history, save_path=None):
-
-    baseline_neutral_loss = history[0]["neutral_loss"]
-    baseline_bias_loss = history[0]["bias_loss"]
-
-    utility_retention = []
-    bias_reduction = []
-    epochs = []
-
-    for record in history:
-
-        epoch = record["epoch"]
-        neutral_loss = record["neutral_loss"]
-        bias_loss = record["bias_loss"]
-
-
-        utility = (
-            baseline_neutral_loss / neutral_loss
-        )
-
-
-        fairness = (
-            1.0
-            - bias_loss / baseline_bias_loss
-        )
-
-        utility_retention.append(utility)
-        bias_reduction.append(fairness)
-        epochs.append(epoch)
-
-
-    plt.figure(figsize=(8, 6))
-
-    plt.plot(
-        utility_retention,
-        bias_reduction,
-        marker="o"
-    )
-
-    # Epoch labels
-    for x, y, epoch in zip(
-        utility_retention,
-        bias_reduction,
-        epochs
-    ):
-        plt.annotate(
-            f"E{epoch}",
-            (x, y),
-            textcoords="offset points",
-            xytext=(5, 5)
-        )
-
-    # Baseline reference
-    plt.axvline(
-        x=1.0,
-        linestyle="--",
-        alpha=0.5
-    )
-
-    plt.axhline(
-        y=0.0,
-        linestyle="--",
-        alpha=0.5
-    )
-
-    plt.xlabel("Utility retention")
-    plt.ylabel("Bias reduction")
-
-    plt.title(
-        "Utility–Fairness Trade-off"
-    )
-
-    plt.grid(alpha=0.3)
-
-    plt.tight_layout()
-
-    if save_path is not None:
-        plt.savefig(
-            save_path,
-            dpi=300,
-            bbox_inches="tight"
-        )
-
-    plt.show()
 

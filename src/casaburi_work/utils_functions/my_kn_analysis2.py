@@ -8,7 +8,7 @@ import json, jsonlines
 import time
 from tqdm import tqdm  
 from transformers import AutoTokenizer
-from custom_bert import BertForMaskedLM
+from src.custom_bert import BertForMaskedLM
 import torch.nn.functional as F
 
 # set logger

@@ -74,7 +74,6 @@ def create_mask_foundation(kn_neurons_directory: Path, is_union: bool = True, is
     """
 
     kn_neurons_paths = list(kn_neurons_directory.glob("kn_rel*.json"))
-    print(kn_neurons_paths)
     kn_neurons_union = {}
     kn_neurons_intersection = {}
 
@@ -94,7 +93,30 @@ def create_mask_foundation(kn_neurons_directory: Path, is_union: bool = True, is
     return kn_neurons_mask_generator
 
 
+def create_mask_relation_based(kn_neurons_directory: Path, relation_ids) -> dict:
+    kn_neurons_dict = defaultdict(dict)
+
+    for relation_id in relation_ids:
+        filename = filename = (kn_neurons_directory/f"kn_rel-{relation_id}.json")
+        layer_map = defaultdict(set)
+        neuron_set = load_kn_neurons(filename[0])
+
+        if not filename.exists():
+            raise FileNotFoundError(
+        f"KN file not found for relation {relation_id}"
+        )
+
+        for layer, neuron in neuron_set:
+            layer_map[layer].add(neuron)
+        kn_neurons_dict[relation_id] = layer_map
+    return dict(kn_neurons_dict)
+        
+        
+
+
 if __name__ == "__main__":
-    create_mask_foundation(None)
+    relation_ids = ["BR0" + str(x) for x in range(1,10)]
+    map = create_mask_relation_based(Path("results\\bert-base-cased\\kn"), relation_ids)
+    print(map)
 
 

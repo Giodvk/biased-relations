@@ -3,20 +3,17 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 import torch.optim as optim
-import torch.nn.functional as F
 from transformers import AutoTokenizer
-from custom_bert import BertForMaskedLM
+from utils_functions.custom_bert import BertForMaskedLM
 from compute_kn_neurons_dict import create_mask_foundation
-from pre_processing_datasets import create_dataloaders
-from utilities import create_gradient_mask, load_dataset_from_disk, plot_utility_fairness
+from datasets.pre_processing_datasets import create_dataloaders
+from utils_functions.utilities import create_gradient_mask, load_dataset_from_disk, create_relation_based_mask
 from tqdm import tqdm
+from fine_tuning.train_metrics import bias_loss_function, compute_bias_diagnostics
+from fine_tuning.Epoch_tracker import EpochMetricTracker
 
 def train_one_epoch(model, neutral_loader, bias_loader, optimizer, device, gradient_mask, kn_neuron_map, biased_loss, lambda_bias = 1.0, criterion = 'union', max_grad_norm = None):
-    total_loss = 0.0
-    total_neutral_loss = 0.0
-    total_bias_loss = 0.0
-    total_bias_contribution = 0.0
-    total_margin = 0.0
+    tracker = EpochMetricTracker()
 
     neurons_to_deactivate = flatten_kn_map(kn_neuron_map, criterion)
 
@@ -53,14 +50,12 @@ def train_one_epoch(model, neutral_loader, bias_loader, optimizer, device, gradi
                 imp_pos=neurons_to_deactivate
             )
         model.train()
-        bias_contribution, margin, loss_bias = biased_loss(
+        loss_bias, bias_contribution = biased_loss(
             logits_normal=bias_logits,
             logits_ablated=unbiased_logits,
             labels=bias_labels
         )
 
-        total_bias_contribution+=bias_contribution.item()
-        total_margin+=margin.item()
 
         loss = (
             loss_neutral
@@ -71,7 +66,8 @@ def train_one_epoch(model, neutral_loader, bias_loader, optimizer, device, gradi
 
         apply_gradient_mask(
             model,
-            gradient_mask
+            gradient_mask,
+            optimizer
         )
 
         if max_grad_norm is not None:
@@ -82,18 +78,55 @@ def train_one_epoch(model, neutral_loader, bias_loader, optimizer, device, gradi
 
         optimizer.step()
 
-        total_loss += loss.item()
-        total_neutral_loss += loss_neutral.item()
-        total_bias_loss += loss_bias.item()
+
+        diagnostics = compute_bias_diagnostics(bias_logits, unbiased_logits, bias_labels)
+
+        diag = diagnostics['batch']
+        batch_metrics = {
+            "bias_loss": loss_bias,
+            "bias_contribution":
+            diag["logit_contribution"],
+
+            "rank_normal":
+            diag["rank_normal"],
+
+            "rank_ablated":
+            diag["rank_ablated"],
+
+            "rank_shift":
+            diag["rank_shift"],
+
+            "relative_rank_shift":
+            diag["relative_rank_shift"],
+
+            "gold_prob_normal":
+            diag["gold_prob_normal"],
+
+            "gold_prob_ablated":
+            diag["gold_prob_ablated"],
+
+            "prob_drop":
+            diag["prob_drop"],
+
+            "margin_normal":
+            diag["margin_normal"],
+
+            "margin_ablated":
+            diag["margin_ablated"],
+
+            "symmetric_kl":
+            diag["symmetric_kl"],
+
+            "top1_preservation":
+            diag["top1_preservation_rate"],
+
+            "rank_worsened_fraction":
+            diag["rank_worsened_fraction"],
+        }
+        tracker.update(batch_metrics)
 
         num_steps+=1
-    return {
-        "loss": total_loss / num_steps,
-        "neutral_loss": total_neutral_loss / num_steps,
-        "bias_loss": total_bias_loss / num_steps,
-        "bias_contribution": total_bias_contribution / num_steps,
-        "margin_best" : total_margin / num_steps
-    }
+    return tracker.compute()
 
 def evaluate_one_epoch(model, neutral_val_loader, bias_val_loader, neutral_loss, biased_loss, kn_neurons_map, device, criterion = "union"):
 
@@ -101,7 +134,6 @@ def evaluate_one_epoch(model, neutral_val_loader, bias_val_loader, neutral_loss,
     total_neutral_loss = 0.0
     total_bias_loss = 0.0
     total_bias_contribution = 0.0
-    total_margin = 0.0
     num_steps = 0
 
     model.eval()
@@ -126,9 +158,8 @@ def evaluate_one_epoch(model, neutral_val_loader, bias_val_loader, neutral_loss,
                             imp_op="remove",
                             imp_pos=neurons_to_deactivate)
 
-            bias_contribution, margin, bias_loss = biased_loss(bias_output, ablated_bias_output, bias_labels)
+            bias_loss, bias_contribution = biased_loss(bias_output, ablated_bias_output, bias_labels)
 
-            total_margin+=margin.item()
             total_bias_contribution+=bias_contribution.item()
             total_neutral_loss+=loss_neutral.item()
             total_bias_loss+=bias_loss.item()
@@ -139,7 +170,6 @@ def evaluate_one_epoch(model, neutral_val_loader, bias_val_loader, neutral_loss,
             "neutral_loss": total_neutral_loss / num_steps,
             "bias_loss": total_bias_loss / num_steps,
             "bias_contribution": total_bias_contribution / num_steps,
-            "margin_best" : total_margin / num_steps
         }
     
 
@@ -148,85 +178,53 @@ def flatten_kn_map(kn_neuron_map, criterion):
         kn_neuron_map = kn_neuron_map[criterion]
     return [(layer, neuron) for layer, neurons in kn_neuron_map.items() for neuron in neurons]
 
-def bias_loss_function(logits_normal, logits_ablated, labels):
-    target_mask = labels != -100
-    target_logits = logits_normal[target_mask]
-    ablated_logits = logits_ablated[target_mask]
-    target_labels = labels[target_mask]
-
-    target_scores_normal = target_logits.gather(1, target_labels.unsqueeze(1)).squeeze(1)
-    target_scores_ablated = ablated_logits.gather(1,target_labels.unsqueeze(1)).squeeze(1)
-
-    competitor_logits_normal = target_logits.clone()
-    competitor_logits_ablated = ablated_logits.clone()
-
-    competitor_logits_normal.scatter_(1, target_labels.unsqueeze(1), float("-inf"))
-
-    competitor_logits_ablated.scatter_(1, target_labels.unsqueeze(1), float("-inf"))
 
 
-    competitor_normal_best = torch.max(competitor_logits_normal, dim=1).values
-    competitor_ablated_best = torch.max(competitor_logits_ablated, dim=1).values
-
-    margin_normal = (target_scores_normal- competitor_normal_best)
-    margin_ablated = (target_scores_ablated - competitor_ablated_best)
-
-    bias_contribution = target_scores_normal - target_scores_ablated
-
-
-    penalty = F.relu(bias_contribution)
-
-    batch_size = labels.size(0)
-
-    batch_indices = (target_mask.nonzero(as_tuple=False)[:, 0])
-
-    loss = torch.zeros(batch_size, device=labels.device, dtype=penalty.dtype)
-    contribution_bias = torch.zeros(batch_size, device=labels.device, dtype=penalty.dtype)
-    margins = torch.zeros(batch_size, device=labels.device, dtype=penalty.dtype)
-
-
-    number_of_examples = torch.zeros(batch_size, device=labels.device, dtype=penalty.dtype)
-
-    loss.scatter_add_(0, batch_indices, penalty)
-
-    contribution_bias.scatter_add_(0, batch_indices, bias_contribution)
-
-    margins.scatter_add_(0, batch_indices, margin_normal)
-
-    number_of_examples.scatter_add_(0, batch_indices, torch.ones_like(penalty))
-
-    number_of_examples = number_of_examples.clamp_min(1.0)
-
-    loss = ( loss / (number_of_examples + 1e-8) )
-
-    contribution_bias = (contribution_bias / number_of_examples)
-
-    margins = (margins / number_of_examples)
-
-    loss = loss.mean()
-
-    bias_contribution = contribution_bias.mean()
-
-    margin_normal = margins.mean()
-
-    return bias_contribution, margin_normal, loss
-
-def apply_gradient_mask(model, gradient_mask):
+def apply_gradient_mask(model, gradient_mask, optimizer):
     for name, param in model.named_parameters():
-        if name in gradient_mask and param.grad is not None:
-            param.grad.mul_(gradient_mask[name])
+
+        if param.grad is None:
+            continue
+
+        if name in gradient_mask:
+
+            mask = gradient_mask[name]
+
+            param.grad.mul_(mask)
+
+            state = optimizer.state[param]
+
+        if "exp_avg" in state:
+            state["exp_avg"].mul_(mask)
+
+        if "exp_avg_sq" in state:
+            state["exp_avg_sq"].mul_(mask)
+
+        else:
+            param.grad = None
 
 
 
 
-def surgical_fine_tuning(model_name, num_epoch, batch_size, neutral_df, biased_df, biased_neurons, bias_criterion, learning_rate, device, criterion):
+def surgical_fine_tuning(model_name,
+                        num_epoch, 
+                        batch_size, 
+                        neutral_df, 
+                        biased_df, 
+                        biased_neurons, 
+                        bias_criterion, 
+                        learning_rate, 
+                        device, criterion, 
+                        results_path,
+                        ):
 
     history = []
+
+    gradient_mask = {}
 
     tokenizer = AutoTokenizer.from_pretrained(model_name)
 
     model = BertForMaskedLM.from_pretrained(model_name).to(device)
-
 
     gradient_mask = create_gradient_mask(model, biased_neurons)
 
@@ -259,12 +257,10 @@ def surgical_fine_tuning(model_name, num_epoch, batch_size, neutral_df, biased_d
         "neutral_loss": baseline_metrics["neutral_loss"],
         "bias_loss": baseline_metrics["bias_loss"],
         "bias_contribution": baseline_metrics["bias_contribution"],
-        "margin_best": baseline_metrics["margin_best"]
         })
 
     
     for epoch in tqdm(range(num_epoch)):
-
         train_metrics = train_one_epoch(
             model = model, 
             neutral_loader = neutral_loader['train'], 
@@ -279,9 +275,8 @@ def surgical_fine_tuning(model_name, num_epoch, batch_size, neutral_df, biased_d
             f"\nEpoch {epoch + 1}/{num_epoch}"
         )
 
-        print(
-            train_metrics
-        )
+        EpochMetricTracker.save_epoch_metrics(results_path, epoch + 1, train_metrics)
+
 
         eval_metrics = evaluate_one_epoch(
             model=model,
@@ -295,22 +290,19 @@ def surgical_fine_tuning(model_name, num_epoch, batch_size, neutral_df, biased_d
 
         history.append({
             "epoch": epoch + 1,
-            "neutral_loss": baseline_metrics["neutral_loss"],
-            "bias_loss": baseline_metrics["bias_loss"],
-            "bias_contribution": baseline_metrics["bias_contribution"],
-            "margin_best": baseline_metrics["margin_best"]
+            "neutral_loss": eval_metrics["neutral_loss"],
+            "bias_loss": eval_metrics["bias_loss"],
+            "bias_contribution": eval_metrics["bias_contribution"],
             })
 
         print(
             eval_metrics
         )
-
-    plot_utility_fairness(history, "utility_fairness_trade_off")
     return model
 
 
 if __name__ == "__main__":
-
+    torch.cuda.empty_cache()
 
     model_name = "bert-base-cased"
 
@@ -318,7 +310,7 @@ if __name__ == "__main__":
 
     kn_neurons_map = create_mask_foundation(kn_neurons_path)
 
-
+    results_path = "results/epoch_stats.csv"
 
     neutral_data_path = "neutral_preservation_dataset"
     bias_data_path = "biased_dataset"
@@ -326,8 +318,6 @@ if __name__ == "__main__":
     neutral_data = load_dataset_from_disk(neutral_data_path)
     biased_data = load_dataset_from_disk(bias_data_path)
 
-    print(len(neutral_data['train']))
-    print(len(biased_data['train']))
 
     num_epoch = 10
     batch_size = 8
@@ -344,5 +334,7 @@ if __name__ == "__main__":
         bias_criterion=bias_loss_function,
         learning_rate=lr,
         device=device,
-        criterion="union"
+        criterion="union",
+        results_path=results_path
     )
+    torch.cuda.empty_cache()
