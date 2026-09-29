@@ -6,7 +6,7 @@ import torch.optim as optim
 from transformers import AutoTokenizer
 from utils_functions.custom_bert import BertForMaskedLM
 from compute_kn_neurons_dict import create_mask_foundation
-from datasets.pre_processing_datasets import create_dataloaders
+from datasets_fun.pre_processing_datasets import create_dataloaders
 from utils_functions.utilities import create_gradient_mask, load_dataset_from_disk, create_relation_based_mask
 from tqdm import tqdm
 from fine_tuning.train_metrics import bias_loss_function, compute_bias_diagnostics
@@ -21,7 +21,8 @@ def train_one_epoch(model, neutral_loader, bias_loader, optimizer, device, gradi
     model.train()
     num_steps = 0
 
-    for neutral_batch, bias_batch in zip(neutral_loader, bias_loader):
+    for neutral_batch, bias_datas in zip(neutral_loader, bias_loader):
+        bias_batch, _ = bias_datas
         neutral_input_ids = neutral_batch['input_ids'].to(device)
         neutral_attention_mask = neutral_batch['attention_mask'].to(device)
         labels_neutral = neutral_batch['labels'].to(device)

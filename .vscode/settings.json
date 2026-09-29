@@ -1,6 +1,6 @@
 {
     "python.analysis.extraPaths": [
-        "${workspaceFolder}/casaburi_work"
+        "${workspaceFolder}/src/casaburi_work"
     ],
     "terminal.integrated.env.windows": {
         "PYTHONPATH": "${workspaceFolder}/src/casaburi_work"

@@ -97,9 +97,9 @@ def create_mask_relation_based(kn_neurons_directory: Path, relation_ids) -> dict
     kn_neurons_dict = defaultdict(dict)
 
     for relation_id in relation_ids:
-        filename = filename = (kn_neurons_directory/f"kn_rel-{relation_id}.json")
+        filename = (kn_neurons_directory/f"kn_rel-{relation_id}.json")
         layer_map = defaultdict(set)
-        neuron_set = load_kn_neurons(filename[0])
+        neuron_set = load_kn_neurons(filename)
 
         if not filename.exists():
             raise FileNotFoundError(
