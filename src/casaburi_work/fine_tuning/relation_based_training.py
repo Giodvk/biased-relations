@@ -24,11 +24,15 @@ def train_relation_based(
     lambda_bias=1.0,
     num_epochs=1,
 ):
+    train_neutral_loader = neutral_loader['train']
+    train_biased_loader = biased_loader['train']
+    eval_neutral_loader = neutral_loader['validation']
+    eval_biased_loader = biased_loader['validation']
  
-
+    tracker = EpochMetricTracker()
     model.train()
 
-    neutral_iterator = iter(neutral_loader)
+    neutral_iterator = iter(train_neutral_loader)
 
     for epoch in range(num_epochs):
 
@@ -38,7 +42,7 @@ def train_relation_based(
 
         num_batches = 0
 
-        for biased_batch, relation in biased_loader:
+        for biased_batch, relation in train_biased_loader:
 
             if isinstance(relation, (list, tuple)):
                 unique_relations = set(relation)
@@ -62,12 +66,13 @@ def train_relation_based(
             current_mask = relation_gradient_masks[relation]
 
             ablation_kn_map = flatten_kn_map(kn_map, "union")
+            
 
             try:
                 neutral_batch = next(neutral_iterator)
 
             except StopIteration:
-                neutral_iterator = iter(neutral_loader)
+                neutral_iterator = iter(train_neutral_loader)
                 neutral_batch = next(neutral_iterator)
 
 
@@ -198,7 +203,19 @@ def train_relation_based(
 
             num_batches += 1
 
+            metrics = compute_bias_diagnostics(logits_normal, logits_ablated, biased_labels)
 
+            tracker.update(metrics['batch'], weight=1)
+        """    
+        EpochMetricTracker.save_epoch_metrics(
+            filepath="results/bert-base-cased/relation_based_training_metrics.csv",
+            epoch=epoch + 1,
+            metrics=tracker.compute()
+        )
+        """
+
+        if epoch % 2 == 0:
+            evaluate_model(model, eval_neutral_loader, eval_biased_loader, bias_loss_function, neutral_loss_function, device, relation_based_kn)
 
         avg_total = (
             epoch_total_loss
@@ -437,7 +454,11 @@ def relation_based_fine_tuning(model_name, relation_based_map, general_kn_map, n
     gradient_mask = create_relation_based_mask(model, relation_based_map)
 
 
-    train_relation_based(model, bias_loader['train'], neutral_loader['train'], gradient_mask, relation_based_map, optimizer, bias_loss_function, neutral_loss, device, num_epochs=num_epochs)
+    train_relation_based(model, bias_loader, neutral_loader, gradient_mask, relation_based_map, optimizer, bias_loss_function, neutral_loss, device, num_epochs=num_epochs)
+
+    
+
+    return model
 
 
 
@@ -460,14 +481,17 @@ def main():
     neutral_data = load_dataset_from_disk(neutral_data_path)
     biased_data = load_dataset_from_disk(bias_data_path)
 
-    relation_based_fine_tuning(
+    model = relation_based_fine_tuning(
         model_name=model_name,
         relation_based_map=relation_based_map,
         general_kn_map=general_kn_neurons_map,
         neutral_dataset=neutral_data,
         biased_dataset=biased_data,
-        device=device
+        device=device,
+        num_epochs=7,
     )
+    torch.save(model.state_dict(), "results/bert-base-cased/relation_based_fine_tuned_model.pt")
+    torch.cuda.empty_cache()
 
 if __name__ == "__main__":
     main()

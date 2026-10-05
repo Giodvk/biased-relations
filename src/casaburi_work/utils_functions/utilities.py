@@ -159,9 +159,6 @@ def mask_input_tokens(input_ids, masked_positions, tokenizer):
 
     masked_inputs[replaced_positions] = tokenizer.mask_token_id
 
-    # Tra le posizioni selezionate rimaste,
-    # metà -> token random
-    # cioè circa il 10% totale delle posizioni selezionate
     random_prob = torch.full(
         input_ids.shape,
         0.5,
@@ -185,7 +182,6 @@ def mask_input_tokens(input_ids, masked_positions, tokenizer):
 
 
     return masked_inputs, labels
-
 
 
 

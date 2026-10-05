@@ -289,24 +289,7 @@ def build_neutral_preservation_dataset(
     use_country_city_animals: bool = True,
     country_city_animals_ratio: float = 0.20,
 ) -> DatasetDict:
-    """
-    Build the raw neutral preservation DatasetDict.
 
-    Schema:
-        text   : raw neutral sentence/passage
-        domain : always "neutral"
-        source : source dataset
-        split  : train / validation / test
-
-    Deliberately absent:
-        input_ids
-        attention_mask
-        labels
-        mask positions
-        apply_mask
-
-    Those fields will be produced later during BERT preprocessing.
-    """
     print("\n=== Neutral preservation dataset ===")
 
     neutral_pool = build_neutral_pool(

@@ -582,8 +582,40 @@ def compute_bias_diagnostics(
                 labels,
                 reduction="mean"
             )
+    # Ricalcolo rank shift a livello esempio
+    rank_normal_ex = example_metrics["rank_normal"]
+    rank_ablated_ex = example_metrics["rank_ablated"]
 
-  
+    rank_shift_ex = (
+        rank_ablated_ex
+        - rank_normal_ex
+        )
+
+    example_metrics["rank_shift"] = rank_shift_ex
+
+    example_metrics["relative_rank_shift"] = (
+        rank_shift_ex
+        / rank_normal_ex.clamp_min(1.0)
+        )
+
+
+    # Percentuali / indicatori
+    example_metrics["rank_worsened"] = (
+        rank_shift_ex > 0
+        ).float()
+
+    example_metrics["rank_improved"] = (
+        rank_shift_ex < 0
+        ).float()
+
+    example_metrics["top1_preservation_rate"] = (
+        aggregate_per_example(
+            same_top1,
+            labels,
+            reduction="mean"
+        )
+    )
+
 
     batch_metrics = {
         name: values.mean()

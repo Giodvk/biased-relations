@@ -67,7 +67,7 @@ def train_one_epoch(model, neutral_loader, bias_loader, optimizer, device, gradi
 
         apply_gradient_mask(
             model,
-            gradient_mask,
+            gradient_mask[criterion],
             optimizer
         )
 
@@ -139,7 +139,8 @@ def evaluate_one_epoch(model, neutral_val_loader, bias_val_loader, neutral_loss,
 
     model.eval()
     with torch.no_grad():
-        for neutral_batch, biased_batch in zip(neutral_val_loader, bias_val_loader):
+        for neutral_batch, biased_data in zip(neutral_val_loader, bias_val_loader):
+            biased_batch, _ = biased_data
             neutral_input_ids = neutral_batch['input_ids'].to(device)
             neutral_attention_mask = neutral_batch['attention_mask'].to(device)
             labels_neutral = neutral_batch['labels'].to(device)
@@ -194,12 +195,12 @@ def apply_gradient_mask(model, gradient_mask, optimizer):
             param.grad.mul_(mask)
 
             state = optimizer.state[param]
-
-        if "exp_avg" in state:
-            state["exp_avg"].mul_(mask)
-
-        if "exp_avg_sq" in state:
-            state["exp_avg_sq"].mul_(mask)
+            
+            if "exp_avg" in state:
+                state["exp_avg"].mul_(mask)
+            
+            if "exp_avg_sq" in state:
+                state["exp_avg_sq"].mul_(mask)
 
         else:
             param.grad = None
@@ -276,7 +277,7 @@ def surgical_fine_tuning(model_name,
             f"\nEpoch {epoch + 1}/{num_epoch}"
         )
 
-        EpochMetricTracker.save_epoch_metrics(results_path, epoch + 1, train_metrics)
+        #EpochMetricTracker.save_epoch_metrics(results_path, epoch + 1, train_metrics)
 
 
         eval_metrics = evaluate_one_epoch(
@@ -338,4 +339,6 @@ if __name__ == "__main__":
         criterion="union",
         results_path=results_path
     )
+
+    torch.save(model.state_dict(), "results/bert-base-cased/surgical_fine_tuned_model.pt")
     torch.cuda.empty_cache()

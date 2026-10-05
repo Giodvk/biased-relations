@@ -237,13 +237,26 @@ def create_dataloaders(
         shuffle=False,
         collate_fn=collate_fn,
     )
-
-    test_loader = DataLoader(
+    if batch_sampler is not None:
+        batch_sampler = RelationBatchSampler(
+                    dataset['test'],
+                    batch_size = batch_size,
+                    shuffle=False,
+                    drop_last=False
+                )
+        
+        test_loader = DataLoader(
         dataset["test"],
-        batch_size=batch_size,
-        shuffle=False,
+        batch_sampler=batch_sampler,
         collate_fn=collate_fn,
-    )
+        )
+    else:
+        test_loader = DataLoader(
+            dataset["test"],
+            batch_size=batch_size,
+            shuffle=False,
+            collate_fn=collate_fn,
+        )
 
     return {
         "train": train_loader,
