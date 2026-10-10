@@ -36,12 +36,14 @@ def fixed_mlm_collate_fn(batch, tokenizer):
         )
         for example in batch
     ]
-
-    labels = [
-        torch.tensor(
-            example["labels"],
-            dtype=torch.long
-        )
+    if "labels" not in batch[0]:
+        labels = None
+    else:
+        labels = [
+            torch.tensor(
+                example["labels"],
+                dtype=torch.long
+            )
         for example in batch
     ]
 
@@ -56,17 +58,17 @@ def fixed_mlm_collate_fn(batch, tokenizer):
         batch_first=True,
         padding_value=0
     )
-
-    labels = pad_sequence(
+    if labels:
+        labels = pad_sequence(
         labels,
         batch_first=True,
         padding_value=-100
-    )
+        )
 
     return {
         "input_ids": input_ids,
         "attention_mask": attention_mask,
-        "labels": labels
+        "labels": labels 
     }
 
 def create_fixed_mlm_mask(
@@ -178,6 +180,7 @@ def fixed_mask_function(example, idx, tokenizer):
 def evaluate_neutral(
     model,
     dataloader,
+    dataloader_unmasked,
     device,
     original_model=None
 ):
@@ -272,9 +275,7 @@ def evaluate_neutral(
     )
 
 
-    pseudo_perplexity_proxy = math.exp(
-        min(avg_loss, 50)
-    )
+    pseudo_perplexity_proxy = evaluate_pseudo_perplexity(model, dataloader_unmasked, device)
 
     results = {
         "mlm_loss": avg_loss,
@@ -291,7 +292,90 @@ def evaluate_neutral(
 
     return results
 
+import math
+import torch
+import torch.nn.functional as F
 
+
+@torch.no_grad()
+def evaluate_pseudo_perplexity(
+    model,
+    dataloader,
+    device,
+    batch_size=8
+):
+    model.eval()
+    tokenizer = AutoTokenizer.from_pretrained(model.config.custom_model_name)
+    total_nll = 0.0
+    total_tokens = 0
+
+    for batch in dataloader:
+
+        input_ids = batch["input_ids"].to(device)
+        attention_mask = batch["attention_mask"].to(device)
+
+        for sequence, attention in zip(input_ids, attention_mask):
+
+            special_mask = torch.tensor(
+                tokenizer.get_special_tokens_mask(
+                    sequence.tolist(),
+                    already_has_special_tokens=True
+                ),
+                device=device,
+                dtype=torch.bool
+            )
+
+            valid_positions = (
+                (attention == 1) & ~special_mask
+            ).nonzero(as_tuple=True)[0]
+
+            for positions in valid_positions.split(batch_size):
+
+                # Una copia della sequenza per ogni posizione
+                masked_inputs = sequence.unsqueeze(0).repeat(
+                    len(positions), 1
+                )
+
+                row_indices = torch.arange(
+                    len(positions),
+                    device=device
+                )
+
+                target_ids = sequence[positions]
+
+                masked_inputs[row_indices, positions] = (
+                    tokenizer.mask_token_id
+                )
+
+                outputs = model(
+                    input_ids=masked_inputs,
+                    attention_mask=attention.unsqueeze(0).expand(
+                        len(positions), -1
+                    )
+                )
+
+                if hasattr(outputs, "logits"):
+                    logits = outputs.logits
+                elif isinstance(outputs, tuple):
+                    logits = outputs[-1]
+                else:
+                    logits = outputs
+
+                target_logits = logits[row_indices, positions, :]
+
+                nll = F.cross_entropy(
+                    target_logits,
+                    target_ids,
+                    reduction="sum"
+                )
+
+                total_nll += nll.item()
+                total_tokens += len(positions)
+
+    if total_tokens == 0:
+        raise ValueError("Nessun token valido per calcolare la PPPL.")
+
+    return math.exp(total_nll / total_tokens)
 
 
 @torch.no_grad()
@@ -394,7 +478,6 @@ def evaluate_biased_relation_based(
             global_metrics[name]
             / max(global_counts[name], 1)
         )
-
 
 
     per_relation_results = {}
@@ -543,7 +626,9 @@ def main():
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     models_to_evaluate = {
-    "relation_based": "results/bert-base-cased/relation_based_fine_tuned_model.pt"
+    "original": None,
+    "relation_based": "results/bert-base-cased/relation_based_fine_tuned_model.pt",
+    "union_based": "results/bert-base-cased/surgical_fine_tuned_model.pt"
     }
 
     kn_neurons_path = Path("results/bert-base-cased/kn")
@@ -591,20 +676,24 @@ def main():
 
     test_bias_loader = biased_loader['test']
 
-    test_neutral = test_neutral.map(
+    test_neutral_masked = test_neutral.map(
         fixed_mask_function,
         fn_kwargs={"tokenizer": tokenizer},
         with_indices=True
     )
 
+    test_neutral_loader_masked = DataLoader(
+        test_neutral_masked,
+        batch_size=8,
+        shuffle=False,
+        collate_fn=partial(fixed_mlm_collate_fn, tokenizer=tokenizer)
+    )
     test_neutral_loader = DataLoader(
         test_neutral,
         batch_size=8,
         shuffle=False,
         collate_fn=partial(fixed_mlm_collate_fn, tokenizer=tokenizer)
     )
-
-    
     for model_label, model_path in models_to_evaluate.items():
         model = None
         if model_path is None:
@@ -617,10 +706,11 @@ def main():
             model.load_state_dict(
             torch.load(model_path, map_location=device)
             )
-
+        model.config.custom_model_name = model_name
         neutral_results = evaluate_neutral(
                 model=model,
-                dataloader=test_neutral_loader,
+                dataloader=test_neutral_loader_masked,
+                dataloader_unmasked=test_neutral_loader,
                 device=device,
             )
 

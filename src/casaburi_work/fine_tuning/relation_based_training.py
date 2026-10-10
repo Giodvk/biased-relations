@@ -456,8 +456,6 @@ def relation_based_fine_tuning(model_name, relation_based_map, general_kn_map, n
 
     train_relation_based(model, bias_loader, neutral_loader, gradient_mask, relation_based_map, optimizer, bias_loss_function, neutral_loss, device, num_epochs=num_epochs)
 
-    
-
     return model
 
 
