@@ -1,5 +1,5 @@
 from pathlib import Path
-
+import argparse
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -277,7 +277,7 @@ def surgical_fine_tuning(model_name,
             f"\nEpoch {epoch + 1}/{num_epoch}"
         )
 
-        #EpochMetricTracker.save_epoch_metrics(results_path, epoch + 1, train_metrics)
+        EpochMetricTracker.save_epoch_metrics(results_path, epoch + 1, train_metrics)
 
 
         eval_metrics = evaluate_one_epoch(
@@ -304,26 +304,50 @@ def surgical_fine_tuning(model_name,
 
 
 if __name__ == "__main__":
-    torch.cuda.empty_cache()
+    
+    parser = argparse.ArgumentParser(description="Preparing the union based surgical fine tuning")
 
-    model_name = "bert-base-cased"
+    # Path neutral dataset
+    parser.add_argument("--neutral_data", required=True, type = str)
+    
+    # Path biased dataset
+    parser.add_argument("--biased_data", required = True, type = str)
+    
+    # Model name and configuration
+    parser.add_argument("--model_name", default="bert-base-cased", type = str)
+    parser.add_argument("--learning_rate", default = 1e-5, type = float)
+    parser.add_argument("--weight_decay", default = 0.0, type = float)
+    parser.add_argument("--num_epoch", default = 10, type = int)
+    parser.add_argument("--batch_size", default = 8, type = int)
+    parser.add_argument("--criterion", default="union", type = str)
+    
+    parser.add_argument("--kn_neurons_path", required = True, type = str)
+    
+    # Output directory for the checkpoint
+    parser.add_argument("--output_dir", required = True, type = str)
 
-    kn_neurons_path = Path("results/bert-base-cased/kn")
+    parser.add_argument("--result_dir", required = True, type = str)
+
+    args = parser.parse_args()
+
+    model_name = args.model_name
+
+    kn_neurons_path = Path(args.kn_neurons_path)
 
     kn_neurons_map = create_mask_foundation(kn_neurons_path)
 
-    results_path = "results/epoch_stats.csv"
+    results_path = args.result_dir
 
-    neutral_data_path = "neutral_preservation_dataset"
-    bias_data_path = "biased_dataset"
+    neutral_data_path = args.neutral_data
+    bias_data_path = args.biased_data
 
     neutral_data = load_dataset_from_disk(neutral_data_path)
     biased_data = load_dataset_from_disk(bias_data_path)
 
 
-    num_epoch = 10
-    batch_size = 8
-    lr = 0.00001
+    num_epoch = args.num_epoch
+    batch_size = args.batch_size
+    lr = args.learning_rate
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     model = surgical_fine_tuning(
@@ -336,9 +360,9 @@ if __name__ == "__main__":
         bias_criterion=bias_loss_function,
         learning_rate=lr,
         device=device,
-        criterion="union",
+        criterion=args.criterion,
         results_path=results_path
     )
 
-    torch.save(model.state_dict(), "results/bert-base-cased/surgical_fine_tuned_model.pt")
+    torch.save(model.state_dict(), args.output_dir + "/surgical_fine_tuned_model.pt")
     torch.cuda.empty_cache()

@@ -1,6 +1,7 @@
 from pathlib import Path
 from collections import defaultdict
 import gc
+import argparse
 import json
 import numpy as np
 import torch
@@ -10,20 +11,12 @@ from transformers import AutoTokenizer
 from dataloader import IntrasentenceLoader
 from utils_functions.custom_bert import BertForMaskedLM
 from compute_kn_neurons_dict import create_mask_foundation
-from fine_tuning.training import flatten_kn_map
-from functools import partial
+from fine_tuning.union_based_training import flatten_kn_map
 
-
-
-MODEL_NAME = "bert-base-cased"
 
 STEREOSET_DEV = Path("src/casaburi_work/Stereo_set_bench/dev.json")
 OUTPUT_DIR = Path("results/stereoset_predictions")
-KN_NEURONS_PATH = Path("results/bert-base-cased/kn")
 
-UNION_MODEL_PATH = Path(
-    "results/bert-base-cased/surgical_fine_tuned_model.pt"
-)
 
 RELATION_MODEL_PATH = Path(
     "results/bert-base-cased/relation_based_fine_tuned_model.pt"
@@ -31,8 +24,6 @@ RELATION_MODEL_PATH = Path(
 
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-BATCH_SIZE = 8
-MAX_SEQ_LENGTH = 128
 
 def load_model(
     model_name,
@@ -111,22 +102,7 @@ def evaluate_stereoset_intrasentence(
     max_seq_length=128,
     suppression_kn=None
 ):
-    """
-    Replica la logica dell'evaluate_intrasentence ufficiale.
-
-    Per ogni masked target:
-        P(token_target | context)
-
-    Per ogni candidate StereoSet:
-        score = media delle probabilità dei suoi WordPiece.
-
-    Restituisce:
-    [
-        {"id": sentence_id, "score": score},
-        ...
-    ]
-    """
-
+   
     model.eval()
 
 
@@ -145,8 +121,6 @@ def evaluate_stereoset_intrasentence(
         shuffle=False,
     )
 
-    # sentence_id ->
-    # lista probabilità dei singoli target token
     word_probabilities = defaultdict(list)
 
     for batch in tqdm(
@@ -182,8 +156,6 @@ def evaluate_stereoset_intrasentence(
             suppression_kn=suppression_kn
         )
 
-        # Deve essere:
-        # [B, L, vocab]
         if logits.dim() != 3:
             raise ValueError(
                 "StereoSet richiede logits con shape "
@@ -201,7 +173,7 @@ def evaluate_stereoset_intrasentence(
             input_ids == mask_token_id
         )
 
-        # Una masked position per istanza generata
+  
         masked_probabilities = probabilities[
             mask_positions
         ]
@@ -233,9 +205,7 @@ def evaluate_stereoset_intrasentence(
     for sentence_id, probs in \
             word_probabilities.items():
 
-        # IMPORTANTE:
-        # lo scorer ufficiale usa np.mean(v)
-        # delle probabilità token-level.
+
         score = float(
             np.mean(probs)
         )
@@ -287,8 +257,28 @@ def save_stereoset_predictions(
 
 def main():
 
+    parser = argparse.ArgumentParser(description="Preparing predictions fro Stereoset Benchmark")
+
+    parser.add_argument("--model_name", type = str, default = "bert-base-cased")
+
+    parser.add_argument("--kn_neurons_path", type = str, required = True)
+
+    parser.add_argument("--union_based_model", type = str, default=None)
+
+    parser.add_argument("--relation_based_model", type = str, default=None)
+
+    parser.add_argument("--batch_size", type = int, default=8)
+
+    parser.add_argument("--criterion", type = str, default="union")
+
+    parser.add_argument("--max_seq_length", type = int, default=128)
+
+    args = parser.parse_args()
+
+    model_name = args.model_name
+
     tokenizer = AutoTokenizer.from_pretrained(
-        MODEL_NAME
+        model_name
     )
 
     OUTPUT_DIR.mkdir(
@@ -297,14 +287,10 @@ def main():
     )
 
 
-    kn_dict = create_mask_foundation(KN_NEURONS_PATH)
+    kn_dict = create_mask_foundation(args.kn_neurons_path)
 
-    kn_map = flatten_kn_map(kn_dict, "union")
+    kn_map = flatten_kn_map(kn_dict, args.criterion)
     
-
-    # ========================================================
-    # Modelli da valutare
-    # ========================================================
 
     experiments = {
         "original": {
@@ -313,12 +299,12 @@ def main():
         },
 
         "union": {
-            "checkpoint": UNION_MODEL_PATH,
+            "checkpoint": args.union_based_model,
             "suppression": False
         },
 
         "relation_based": {
-            "checkpoint": RELATION_MODEL_PATH,
+            "checkpoint": args.relation_based_model,
             "suppression": False
         },
 
@@ -343,7 +329,7 @@ def main():
         print("=" * 70)
 
         model = load_model(
-            model_name=MODEL_NAME,
+            model_name=model_name,
             checkpoint_path=config[
                 "checkpoint"
             ],
@@ -362,8 +348,8 @@ def main():
                 tokenizer=tokenizer,
                 stereoset_file=STEREOSET_DEV,
                 device=DEVICE,
-                batch_size=BATCH_SIZE,
-                max_seq_length=MAX_SEQ_LENGTH,
+                batch_size=args.batch_size,
+                max_seq_length=args.max_seq_length,
                 suppression_kn=suppression_kn
             )
         )
@@ -383,10 +369,6 @@ def main():
             f"predictions to {output_file}"
         )
 
-        # ====================================================
-        # Libera GPU prima del prossimo modello
-        # ====================================================
-
         del model
 
         gc.collect()
@@ -397,3 +379,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+

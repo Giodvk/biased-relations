@@ -308,7 +308,7 @@ if __name__ == "__main__":
     model_list = [
         #"bert-base-cased",
         "bert-large-cased",
-        "bert-base-uncased",
+        #"bert-base-uncased",
         # "bert-large-uncased",
         # FINETUNED models su base bert-large-cased:
         # "aieng-lab/bert-large-cased_requirement-completion",
@@ -336,14 +336,13 @@ if __name__ == "__main__":
                 "max_seq_length": 128,
                 "do_lower_case": True if 'uncased' in model_name else False,
                 "no_cuda": False,
-                "gpus": "0",  # <--- CAMBIATO DA "1" A "0" (Usa la prima e unica GPU)
+                "gpus": "0",  
                 "seed": 42,
-                "debug": 100000, # Per testare senza OOM metti 10, poi ripristina a 100000
+                "debug": 100000,
                 "get_ig_gold": True,
                 "get_ig_pred": False,
                 "get_pred": False,
                 "get_base": False,
-                # --- CONFIGURAZIONE GPU BILANCIATA (RTX 5070 Ti) ---
                 "batch_size": 20,
                 "num_batch": 1  # Step totali = 20
             }

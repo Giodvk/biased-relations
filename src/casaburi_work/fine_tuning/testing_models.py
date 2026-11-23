@@ -1,6 +1,7 @@
 from functools import partial
 import gc
 import math
+import argparse
 import csv
 import os
 from collections import defaultdict
@@ -8,10 +9,10 @@ import torch
 import torch.nn.functional as F
 from fine_tuning.train_metrics import compute_bias_diagnostics, symmetric_kl_divergence
 from torch.utils.data import DataLoader
-from transformers import DataCollatorWithPadding, AutoTokenizer
+from transformers import AutoTokenizer
 import torch
 from torch.nn.utils.rnn import pad_sequence
-from fine_tuning.training import flatten_kn_map
+from fine_tuning.union_based_training import flatten_kn_map
 from utils_functions.custom_bert import BertForMaskedLM
 from utils_functions.utilities import load_dataset_from_disk
 from compute_kn_neurons_dict import  create_mask_relation_based
@@ -292,10 +293,6 @@ def evaluate_neutral(
 
     return results
 
-import math
-import torch
-import torch.nn.functional as F
-
 
 @torch.no_grad()
 def evaluate_pseudo_perplexity(
@@ -331,7 +328,7 @@ def evaluate_pseudo_perplexity(
 
             for positions in valid_positions.split(batch_size):
 
-                # Una copia della sequenza per ogni posizione
+                
                 masked_inputs = sequence.unsqueeze(0).repeat(
                     len(positions), 1
                 )
@@ -617,7 +614,26 @@ def save_evaluation_results(
 
 
 def main():
-    model_name = "bert-base-cased"
+
+    parser = argparse.ArgumentParser(description="Preparing testing on neutral dataset and biased dataset")
+
+    parser.add_argument("--model_name", type = str, default = "bert-base-cased")
+
+    parser.add_argument("--neutral_data", type = str, required = True)
+
+    parser.add_argument("--biased_data", type = str, required = True)
+
+    parser.add_argument("--kn_neurons_path", type = str, required = True)
+
+    parser.add_argument("--union_based_model", type = str, default = None)
+
+    parser.add_argument("--relation_based_model", type = str, default = None)
+
+    parser.add_argument("--output_dir", type = str, required = True)
+
+    args = parser.parse_args()
+
+    model_name = args.model_name
 
     tokenizer = AutoTokenizer.from_pretrained(
         model_name
@@ -627,19 +643,19 @@ def main():
 
     models_to_evaluate = {
     "original": None,
-    "relation_based": "results/bert-base-cased/relation_based_fine_tuned_model.pt",
-    "union_based": "results/bert-base-cased/surgical_fine_tuned_model.pt"
+    "relation_based": args.relation_based_model,
+    "union_based": args.union_based_model
     }
 
-    kn_neurons_path = Path("results/bert-base-cased/kn")
+    kn_neurons_path = Path(args.kn_neurons_path)
 
     relation_ids = ["BR0" + str(x) for x in range(1, 10)]
 
     kn_neurons_map = create_mask_relation_based(kn_neurons_path, relation_ids)
 
-    biased_test_path = "biased_dataset"
+    biased_test_path = args.biased_data
 
-    neutral_test_path = "neutral_preservation_dataset"
+    neutral_test_path = args.neutral_data
 
     biased_dataset = load_dataset_from_disk(biased_test_path)
     neutral_dataset = load_dataset_from_disk(neutral_test_path)
@@ -723,7 +739,7 @@ def main():
         )
 
         save_evaluation_results(
-            output_dir=f"results/bert-base-cased/evaluation_results/{model_label}",
+            output_dir=f"{args.output_dir}/{model_label}",
             model_name=model_label,
             neutral_results=neutral_results,
             biased_results=biased_results

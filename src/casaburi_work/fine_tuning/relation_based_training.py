@@ -1,4 +1,5 @@
 from pathlib import Path
+import argparse
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -9,7 +10,7 @@ from datasets_fun.pre_processing_datasets import create_dataloaders
 from utils_functions.utilities import create_gradient_mask, load_dataset_from_disk, create_relation_based_mask
 from fine_tuning.train_metrics import bias_loss_function, compute_bias_diagnostics
 from fine_tuning.Epoch_tracker import EpochMetricTracker
-from fine_tuning.training import flatten_kn_map
+from fine_tuning.union_based_training import flatten_kn_map
 
 def train_relation_based(
     model,
@@ -205,14 +206,12 @@ def train_relation_based(
 
             metrics = compute_bias_diagnostics(logits_normal, logits_ablated, biased_labels)
 
-            tracker.update(metrics['batch'], weight=1)
-        """    
+            tracker.update(metrics['batch'], weight=1)    
         EpochMetricTracker.save_epoch_metrics(
             filepath="results/bert-base-cased/relation_based_training_metrics.csv",
             epoch=epoch + 1,
             metrics=tracker.compute()
         )
-        """
 
         if epoch % 2 == 0:
             evaluate_model(model, eval_neutral_loader, eval_biased_loader, bias_loss_function, neutral_loss_function, device, relation_based_kn)
@@ -428,7 +427,7 @@ def reset_opt_state(named_parameters, current_mask, optimizer, saved_inactive_va
                 )
 
 
-def relation_based_fine_tuning(model_name, relation_based_map, general_kn_map, neutral_dataset, biased_dataset, device, num_epochs = 1, batch_size = 8):
+def relation_based_fine_tuning(model_name, relation_based_map, general_kn_map, neutral_dataset, biased_dataset, device, num_epochs = 1, batch_size = 8, learning_rate = 1e-5, weight_decay = 0.0):
     
     model = BertForMaskedLM.from_pretrained(model_name).to(device)
 
@@ -447,8 +446,8 @@ def relation_based_fine_tuning(model_name, relation_based_map, general_kn_map, n
 
     optimizer = optim.AdamW(
         filter(lambda p: p.requires_grad, model.parameters()),
-        lr = 1e-5,
-        weight_decay = 0.0
+        lr = learning_rate,
+        weight_decay = weight_decay
     )
 
     gradient_mask = create_relation_based_mask(model, relation_based_map)
@@ -460,10 +459,10 @@ def relation_based_fine_tuning(model_name, relation_based_map, general_kn_map, n
 
 
 
-def main():
-    model_name = "bert-base-cased"
+def main(args_pars):
+    model_name = args_pars.model_name
 
-    kn_neurons_path = Path("results/bert-base-cased/kn")
+    kn_neurons_path = Path(args_pars.kn_neurons_path)
 
     relation_ids = ["BR0" + str(x) for x in range(1, 10)]
     
@@ -473,8 +472,8 @@ def main():
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
-    neutral_data_path = "neutral_preservation_dataset"
-    bias_data_path = "biased_dataset"
+    neutral_data_path = args_pars.neutral_data
+    bias_data_path = args_pars.biased_data
     
     neutral_data = load_dataset_from_disk(neutral_data_path)
     biased_data = load_dataset_from_disk(bias_data_path)
@@ -486,13 +485,37 @@ def main():
         neutral_dataset=neutral_data,
         biased_dataset=biased_data,
         device=device,
-        num_epochs=7,
+        num_epochs=args_pars.num_epoch,
+        batch_size=args_pars.batch_size
     )
-    torch.save(model.state_dict(), "results/bert-base-cased/relation_based_fine_tuned_model.pt")
+    torch.save(model.state_dict(), args_pars.output_dir + "/relation_based_fine_tuned_model.pt")
     torch.cuda.empty_cache()
 
 if __name__ == "__main__":
-    main()
+
+    parser = argparse.ArgumentParser(description="Initializing Relation-based fine tuning")
+
+    # Path neutral dataset
+    parser.add_argument("--neutral_data", required=True, type = str)
+
+    # Path biased dataset
+    parser.add_argument("--biased_data", required = True, type = str)
+
+    # Model name and configuration
+    parser.add_argument("--model_name", default="bert-base-cased", type = str)
+    parser.add_argument("--learning_rate", default = 1e-5, type = float)
+    parser.add_argument("--weight_decay", default = 0.0, type = float)
+    parser.add_argument("--num_epoch", default = 10, type = int)
+    parser.add_argument("--batch_size", default = 8, type = int)
+
+    parser.add_argument("--kn_neurons_path", required = True, type = str)
+
+    # Output directory for the checkpoint
+    parser.add_argument("--output_dir", required = True, type = str)
+
+    args = parser.parse_args()
+
+    main(args)
     
 
 

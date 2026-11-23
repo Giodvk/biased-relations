@@ -135,16 +135,7 @@ def build_neutral_pool(
     use_country_city_animals: bool = True,
     country_city_animals_ratio: float = 0.20,
 ) -> list[dict]:
-    """
-    Build the complete neutral preservation pool.
 
-    Default source composition:
-        80% WikiText-2
-        20% Country-city-animals
-
-    If the optional source cannot fill its quota, WikiText is used to fill
-    the missing examples.
-    """
     if total_examples <= 0:
         raise ValueError("total_examples must be > 0.")
 
@@ -190,8 +181,7 @@ def build_neutral_pool(
 
     neutral_pool = deduplicated
 
-    # If the optional source did not fill its quota, fill the missing
-    # examples from WikiText.
+
     if len(neutral_pool) < total_examples:
         missing = total_examples - len(neutral_pool)
 
@@ -200,8 +190,6 @@ def build_neutral_pool(
             "from WikiText..."
         )
 
-        # Ask for more than strictly necessary because some examples may
-        # already exist in the pool and will be discarded as duplicates.
         extra_wiki = load_wikitext_neutral(
             target_size=max(missing * 3, missing),
             seed=seed + 2,
