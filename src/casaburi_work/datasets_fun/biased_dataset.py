@@ -172,9 +172,6 @@ def normalize_prompt_file(
                 else ""
             )
 
-            # -----------------------------
-            # Integrity checks
-            # -----------------------------
             if strict and MASK_TOKEN not in prompt:
                 raise ValueError(
                     f"{path.name}, relation {relation_index}, "
@@ -509,9 +506,14 @@ def main() -> None:
     )
 
     parser.add_argument(
-        "--seed",
+        "--seeds",
         type=int,
-        default=42,
+        nargs="+",
+        default=[42, 1234, 2024],
+        help=(
+            "One biased dataset is generated per seed. Use the same seeds "
+            "as neutral_dataset.py to pair the two datasets per run."
+        ),
     )
 
     parser.add_argument(
@@ -538,35 +540,43 @@ def main() -> None:
     parser.add_argument(
         "--output-dir",
         type=str,
-        default="./biased_dataset",
+        default="./biased_dataset_seed",
     )
 
     args = parser.parse_args()
 
-    dataset = build_biased_dataset(
-        data_dir=args.data_dir,
-        pattern=args.pattern,
-        seed=args.seed,
-        train_ratio=args.train_ratio,
-        validation_ratio=args.validation_ratio,
-        strict=not args.no_strict,
-    )
+    if len(set(args.seeds)) != len(args.seeds):
+        raise ValueError(f"Duplicate seeds: {args.seeds}")
 
-    validate_no_relation_leakage(dataset)
+    base_dir = Path(args.output_dir)
 
-    output_dir = Path(args.output_dir)
-    output_dir.mkdir(
-        parents=True,
-        exist_ok=True,
-    )
+    for seed in args.seeds:
+        print(f"\n=== Biased dataset, seed={seed} ===")
 
-    dataset.save_to_disk(
-        str(output_dir)
-    )
+        dataset = build_biased_dataset(
+            data_dir=args.data_dir,
+            pattern=args.pattern,
+            seed=seed,
+            train_ratio=args.train_ratio,
+            validation_ratio=args.validation_ratio,
+            strict=not args.no_strict,
+        )
 
-    print(
-        f"\nBiased dataset saved to: {output_dir}"
-    )
+        validate_no_relation_leakage(dataset)
+
+        output_dir = base_dir.parent / f"{base_dir.name}_{seed}"
+        output_dir.mkdir(
+            parents=True,
+            exist_ok=True,
+        )
+
+        dataset.save_to_disk(
+            str(output_dir)
+        )
+
+        print(
+            f"\nBiased dataset (seed={seed}) saved to: {output_dir}"
+        )
 
 
 if __name__ == "__main__":

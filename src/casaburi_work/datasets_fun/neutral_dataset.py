@@ -366,9 +366,14 @@ def main() -> None:
     )
 
     parser.add_argument(
-        "--seed",
+        "--seeds",
         type=int,
-        default=42,
+        nargs="+",
+        default=[42, 1234, 2024],
+        help=(
+            "One neutral dataset is generated per seed. Seeds are kept far "
+            "apart because seed + 1 and seed + 2 are also used internally."
+        ),
     )
 
     parser.add_argument(
@@ -393,33 +398,38 @@ def main() -> None:
     parser.add_argument(
         "--output-dir",
         type=str,
-        default="./neutral_preservation_dataset",
+        default="./neutral_preservation_dataset_seed",
     )
 
     args = parser.parse_args()
 
-    dataset = build_neutral_preservation_dataset(
-        neutral_examples=args.neutral_examples,
-        seed=args.seed,
-        use_country_city_animals=(
-            not args.no_country_city_animals
-        ),
-        country_city_animals_ratio=(
-            args.country_city_animals_ratio
-        ),
-    )
+    if len(set(args.seeds)) != len(args.seeds):
+        raise ValueError(f"Duplicate seeds: {args.seeds}")
 
-    print_statistics(dataset)
+    base_dir = Path(args.output_dir)
 
-    output_dir = Path(args.output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
+    for seed in args.seeds:
+        dataset = build_neutral_preservation_dataset(
+            neutral_examples=args.neutral_examples,
+            seed=seed,
+            use_country_city_animals=(
+                not args.no_country_city_animals
+            ),
+            country_city_animals_ratio=(
+                args.country_city_animals_ratio
+            ),
+        )
 
-    dataset.save_to_disk(str(output_dir))
+        print_statistics(dataset)
 
-    print(
-        f"\nNeutral preservation dataset saved to: "
-        f"{output_dir}"
-    )
+        output_dir = base_dir.parent / f"{base_dir.name}_{seed}"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        dataset.save_to_disk(str(output_dir))
+
+        print(
+            f"\nNeutral preservation dataset (seed={seed}) saved to: "
+            f"{output_dir}"
+        )
 
 
 if __name__ == "__main__":

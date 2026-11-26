@@ -1,0 +1,131 @@
+{
+  "holistic_bias_version": "v1.1",
+  "relation_axes": {
+    "BR01": ["age"],
+    "BR02": ["ability"],
+    "BR03": ["gender_and_sex"],
+    "BR04": ["characteristics/immigration_status", "nationality", "race_ethnicity"],
+    "BR05": ["body_type"],
+    "BR06": ["body_type/skin_color", "nationality", "race_ethnicity"],
+    "BR07": ["religion"],
+    "BR08": ["sexual_orientation"],
+    "BR09": ["socioeconomic_class"]
+  },
+  "gendered_noun_relations": ["BR03"],
+  "manual_identity": {
+    "BR01": {
+      "18-year-olds": ["18", "year", "olds"],
+      "college students": ["college", "students"],
+      "minors under 18": ["minors", "18"]
+    },
+    "BR02": {
+      "Boy with cerebral palsy": ["cerebral", "palsy"],
+      "Comrade in a wheelchair": ["wheelchair"],
+      "Demented person": ["demented"],
+      "Fat person": ["fat"],
+      "Julie with vision impairment": ["vision", "impairment"],
+      "Mentally ill people": ["mentally", "ill"],
+      "Mentally ill person": ["mentally", "ill"],
+      "Old man with intellectual disability": ["intellectual", "disability"],
+      "People with a family history of mental illness": ["mental", "illness"],
+      "People with ADHD": ["adhd"],
+      "People with autism": ["autism"],
+      "People with Down Syndrome": ["down", "syndrome"],
+      "People with Down syndrome": ["down", "syndrome"],
+      "People with intellectual disabilities": ["intellectual", "disabilities"],
+      "People with mental illness": ["mental", "illness"],
+      "People with phobias": ["phobias"],
+      "People with schizophrenia": ["schizophrenia"],
+      "Person with intellectual disability": ["intellectual", "disability"],
+      "Psychotic kids": ["psychotic"],
+      "Salesperson with intellectual disability": ["intellectual", "disability"],
+      "Tattoo parlor employee (mentally challenged)": ["mentally", "challenged"]
+    },
+    "BR04": {
+      "English people": ["english"],
+      "Inuit people": ["inuit"],
+      "Iraqi person": ["iraqi"],
+      "Irish people": ["irish"],
+      "Italian boy": ["italian"],
+      "Italian family": ["italian"],
+      "Italian mothers": ["italian"],
+      "Jewish people": ["jewish"],
+      "Middle Easterners": ["middle", "easterners"],
+      "Polish people": ["polish"],
+      "Roma Gypsies": ["roma", "gypsies"],
+      "Roma people": ["roma"],
+      "Romani people": ["romani"],
+      "Russian names": ["russian"],
+      "Saudi Arabians": ["saudi", "arabians"],
+      "Thai parents": ["thai"],
+      "Yakuza (Japanese)": ["japanese"]
+    },
+    "BR05": {
+      "people with facial differences": ["facial", "differences"],
+      "people with physical disabilities": ["physical", "disabilities"],
+      "plus-size women": ["plus", "size"],
+      "Russian women": ["russian"]
+    },
+    "BR06": {
+      "Italian people": ["italian"],
+      "Jewish people": ["jewish"],
+      "minority groups": ["minority"],
+      "mixed-race children": ["mixed", "race"],
+      "people of color": ["of", "color"],
+      "Puerto Ricans": ["puerto", "ricans"],
+      "Roma people": ["roma"]
+    },
+    "BR07": {
+      "Arabic people": ["arabic"],
+      "Interfaith marriage": ["interfaith"],
+      "Mosque-goers": ["mosque"],
+      "People attending mosque": ["mosque"],
+      "People wearing headscarves": ["headscarves"],
+      "Quran readers": ["quran"]
+    },
+    "BR08": {
+      "Male hairdressers": ["male", "hairdressers"],
+      "Same-sex intimacy": ["same", "sex"],
+      "Same-sex marriage": ["same", "sex"],
+      "Transgender people": ["transgender"]
+    },
+    "BR09": {
+      "'Ghetto' behavior": ["ghetto"],
+      "Blue collar workers": ["blue", "collar"],
+      "Foster parents": ["foster"],
+      "Garbage collectors": ["garbage", "collectors"],
+      "Ghetto behavior": ["ghetto"],
+      "Homeless people": ["homeless"],
+      "Low-wage workers": ["low", "wage"],
+      "Manual laborers": ["manual", "laborers"],
+      "People from the ghetto": ["ghetto"],
+      "People in poverty": ["poverty"],
+      "People in public housing": ["public", "housing"],
+      "Trailer park residents": ["trailer", "park"],
+      "Uneducated people": ["uneducated"]
+    }
+  },
+  "needs_review": {
+    "BR01": {
+      "college students": "manual: age is only implied by the role"
+    },
+    "BR02": {
+      "Fat person": "manual: body type labelled as disability"
+    },
+    "BR03": {
+      "pregnant women": "'pregnant' is a HolisticBias characteristic, outside the gender axis"
+    },
+    "BR04": {
+      "Yakuza (Japanese)": "manual: 'Yakuza' is excluded, only 'Japanese' is kept"
+    },
+    "BR05": {
+      "Russian women": "manual: no physical-appearance word in the target"
+    },
+    "BR06": {
+      "people of color": "manual: 'people' is a HolisticBias person noun, 'of color' is kept"
+    },
+    "BR08": {
+      "Male hairdressers": "manual: orientation is only implied by the stereotype"
+    }
+  }
+}

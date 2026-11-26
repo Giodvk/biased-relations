@@ -435,9 +435,9 @@ def relation_based_fine_tuning(model_name, relation_based_map, general_kn_map, n
 
     neutral_loss = nn.CrossEntropyLoss(ignore_index=-100)
 
-    neutral_loader = create_dataloaders(neutral_dataset, tokenizer, "neutral")
+    neutral_loader = create_dataloaders(neutral_dataset, tokenizer, "neutral", batch_size=batch_size)
 
-    bias_loader = create_dataloaders(biased_dataset, tokenizer, "biased")
+    bias_loader = create_dataloaders(biased_dataset, tokenizer, "biased", batch_size=batch_size)
 
     gradient_mask = create_gradient_mask(model, general_kn_map)
 
@@ -486,7 +486,9 @@ def main(args_pars):
         biased_dataset=biased_data,
         device=device,
         num_epochs=args_pars.num_epoch,
-        batch_size=args_pars.batch_size
+        batch_size=args_pars.batch_size,
+        learning_rate=args.learning_rate,
+        weight_decay=args.weight_decay
     )
     torch.save(model.state_dict(), args_pars.output_dir + "/relation_based_fine_tuned_model.pt")
     torch.cuda.empty_cache()
